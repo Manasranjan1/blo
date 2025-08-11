@@ -3,6 +3,7 @@ class Auth {
   constructor() {
     this.auth = window.auth;
     this.db = window.db;
+    this.firebaseApp = window.firebaseApp;
     this.currentUser = null;
     this.setupAuthStateListener();
   }
@@ -73,15 +74,38 @@ class Auth {
   // Send OTP to phone number
   async sendOTP(phoneNumber) {
     try {
-      const appVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+      console.log('Starting OTP send process for:', phoneNumber);
+      console.log('Firebase App available:', !!this.firebaseApp);
+      console.log('Auth object available:', !!this.auth);
+      
+      // Clear any existing reCAPTCHA
+      if (window.recaptchaVerifier) {
+        console.log('Clearing existing reCAPTCHA verifier');
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+      
+      // Create new reCAPTCHA verifier - pass the Firebase app instance directly
+      console.log('Creating new reCAPTCHA verifier');
+      window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
         'size': 'normal',
         'callback': (response) => {
           console.log('reCAPTCHA solved');
+        },
+        'expired-callback': () => {
+          console.log('reCAPTCHA expired');
         }
-      }, window.auth);
+      });
 
-      const confirmationResult = await this.auth.signInWithPhoneNumber(phoneNumber, appVerifier);
+      // Render reCAPTCHA
+      console.log('Rendering reCAPTCHA');
+      await window.recaptchaVerifier.render();
+      console.log('reCAPTCHA rendered successfully');
+      
+      console.log('Sending OTP to phone number');
+      const confirmationResult = await this.auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier);
       window.confirmationResult = confirmationResult;
+      console.log('OTP sent successfully');
       
       // Hide phone input, show OTP input
       document.getElementById('phone-section').style.display = 'none';
@@ -90,6 +114,33 @@ class Auth {
       return true;
     } catch (error) {
       console.error('Error sending OTP:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Clear reCAPTCHA on error
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (clearError) {
+          console.error('Error clearing reCAPTCHA:', clearError);
+        }
+        window.recaptchaVerifier = null;
+      }
+      
+      // Provide more specific error messages
+      let userMessage = 'Failed to send OTP. Please try again.';
+      
+      if (error.code === 'auth/invalid-phone-number') {
+        userMessage = 'Invalid phone number format. Please check your phone number.';
+      } else if (error.code === 'auth/too-many-requests') {
+        userMessage = 'Too many attempts. Please try again later.';
+      } else if (error.code === 'auth/quota-exceeded') {
+        userMessage = 'SMS quota exceeded. Please try again later.';
+      } else if (error.code === 'auth/invalid-api-key') {
+        userMessage = 'Authentication service error. Please contact support.';
+      }
+      
+      error.userMessage = userMessage;
       throw error;
     }
   }

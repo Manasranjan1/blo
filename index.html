@@ -58,10 +58,9 @@
     </div>
 
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
     <!-- App Scripts -->
     <script src="firebaseConfig.js"></script>
@@ -116,7 +115,8 @@
                 
             } catch (error) {
                 console.error('Error sending OTP:', error);
-                showAlert(error.message || 'Failed to send OTP. Please try again.', 'error');
+                const errorMessage = error.userMessage || error.message || 'Failed to send OTP. Please try again.';
+                showAlert(errorMessage, 'error');
             } finally {
                 sendOtpBtn.disabled = false;
                 sendOtpBtn.innerHTML = 'Send OTP';

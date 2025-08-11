@@ -8,13 +8,18 @@ const firebaseConfig = {
   appId: "1:904499304550:web:cd77e4fb1577a2f8ec75a7"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// Check if Firebase is already initialized
+let firebaseApp;
+if (!firebase.apps.length) {
+  // Initialize Firebase
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+} else {
+  firebaseApp = firebase.app();
+}
 
 // Initialize Firebase services
 const auth = firebase.auth();
 const db = firebase.firestore();
-const messaging = firebase.messaging();
 
 // Enable offline persistence
 db.enablePersistence()
@@ -29,9 +34,10 @@ db.enablePersistence()
 // Export for use in other files
 window.auth = auth;
 window.db = db;
-window.messaging = messaging;
+window.firebaseApp = firebaseApp;
 
 // Debug: Log Firebase initialization
 console.log('Firebase initialized successfully');
+console.log('Firebase App:', firebaseApp);
 console.log('Auth object:', auth);
-console.log('Config:', firebase.app().options);
+console.log('Config:', firebaseApp.options);
