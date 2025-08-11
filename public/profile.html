@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Donor - Profile</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="index.html" class="logo">🩸 <span>Blood Donor</span></a>
+                <nav>
+                    <ul class="nav-menu">
+                        <li><a href="profile.html">Profile</a></li>
+                        <li><a href="create-request.html">Create Request</a></li>
+                        <li><a href="donor-dashboard.html">Donor Dashboard</a></li>
+                        <li><a href="requester-dashboard.html">My Requests</a></li>
+                    </ul>
+                </nav>
+                <div class="user-menu">
+                    <div class="notification-icon" onclick="toggleNotifications()">
+                        🔔
+                        <span id="notification-badge" class="notification-badge hidden">0</span>
+                    </div>
+                    <button onclick="signOut()" class="btn btn-outline">Sign Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <h1 class="card-title">Create Your Profile</h1>
+                    <p class="card-subtitle">Set up your profile to start using Blood Donor</p>
+                </div>
+
+                <form id="profile-form">
+                    <div class="form-group">
+                        <label for="name" class="form-label">Full Name *</label>
+                        <input type="text" id="name" class="form-input" placeholder="Enter your full name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="aadhaar" class="form-label">Aadhaar Number *</label>
+                        <input type="text" id="aadhaar" class="form-input" placeholder="Enter 12-digit Aadhaar number" 
+                               pattern="[0-9]{12}" maxlength="12" required>
+                        <small style="color: #7f8c8d; font-size: 0.9rem;">12-digit unique identification number</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <input type="tel" id="phone" class="form-input" readonly>
+                        <small style="color: #7f8c8d; font-size: 0.9rem;">This will be filled automatically from your login</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="blood-type" class="form-label">Blood Type *</label>
+                        <select id="blood-type" class="form-select" required>
+                            <option value="">Select blood type</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Location *</label>
+                        <div id="location-section">
+                            <button type="button" id="detect-location-btn" class="btn btn-secondary">
+                                📍 Detect My Location
+                            </button>
+                            <div id="location-status" class="mt-2"></div>
+                        </div>
+                        <div id="location-details" class="hidden">
+                            <div class="flex gap-2 mt-2">
+                                <input type="number" id="latitude" class="form-input" placeholder="Latitude" step="any" readonly>
+                                <input type="number" id="longitude" class="form-input" placeholder="Longitude" step="any" readonly>
+                            </div>
+                            <div id="address-display" class="mt-2 p-2" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" id="save-profile-btn" class="btn btn-primary" style="width: 100%;">
+                            Save Profile
+                        </button>
+                    </div>
+                </form>
+
+                <div id="alert-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="firebaseConfig.js"></script>
+    <script src="geoFirestore.js"></script>
+    <script src="auth.js"></script>
+    <script src="requests.js"></script>
+    <script src="notifications.js"></script>
+    
+    <script>
+        // DOM elements
+        const profileForm = document.getElementById('profile-form');
+        const nameInput = document.getElementById('name');
+        const aadhaarInput = document.getElementById('aadhaar');
+        const phoneInput = document.getElementById('phone');
+        const bloodTypeSelect = document.getElementById('blood-type');
+        const detectLocationBtn = document.getElementById('detect-location-btn');
+        const locationStatus = document.getElementById('location-status');
+        const locationDetails = document.getElementById('location-details');
+        const latitudeInput = document.getElementById('latitude');
+        const longitudeInput = document.getElementById('longitude');
+        const addressDisplay = document.getElementById('address-display');
+        const saveProfileBtn = document.getElementById('save-profile-btn');
+        const alertContainer = document.getElementById('alert-container');
+
+        let userLocation = null;
+
+        // Show alert message
+        function showAlert(message, type = 'info') {
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        // Check if user is authenticated
+        function checkAuth() {
+            if (!window.authModule.isAuthenticated()) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Fill phone number from auth
+            const user = window.authModule.getCurrentUser();
+            if (user && user.phoneNumber) {
+                phoneInput.value = user.phoneNumber;
+            }
+
+            // Check if profile already exists
+            checkExistingProfile();
+        }
+
+        // Check if user already has a profile
+        async function checkExistingProfile() {
+            try {
+                const user = window.authModule.getCurrentUser();
+                const doc = await window.db.collection('users').doc(user.uid).get();
+                
+                if (doc.exists) {
+                    const userData = doc.data();
+                    fillProfileForm(userData);
+                    showAlert('Profile loaded successfully. You can edit and save changes.', 'info');
+                }
+            } catch (error) {
+                console.error('Error checking existing profile:', error);
+            }
+        }
+
+        // Fill form with existing profile data
+        function fillProfileForm(userData) {
+            nameInput.value = userData.name || '';
+            aadhaarInput.value = userData.aadhaar_no || '';
+            bloodTypeSelect.value = userData.blood_type || '';
+            
+            if (userData.location) {
+                userLocation = userData.location;
+                latitudeInput.value = userData.location.lat;
+                longitudeInput.value = userData.location.lng;
+                locationDetails.style.display = 'block';
+                detectLocationBtn.textContent = '📍 Update Location';
+                
+                // Get address from coordinates
+                getAddressFromCoordinates(userData.location.lat, userData.location.lng);
+            }
+        }
+
+        // Detect user's location
+        detectLocationBtn.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showAlert('Geolocation is not supported by your browser', 'error');
+                return;
+            }
+
+            detectLocationBtn.disabled = true;
+            detectLocationBtn.innerHTML = '<span class="loading"></span> Detecting...';
+            locationStatus.innerHTML = '<div class="alert alert-info">Detecting your location...</div>';
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    userLocation = { lat: latitude, lng: longitude };
+                    
+                    latitudeInput.value = latitude;
+                    longitudeInput.value = longitude;
+                    locationDetails.style.display = 'block';
+                    detectLocationBtn.textContent = '📍 Update Location';
+                    
+                    locationStatus.innerHTML = '<div class="alert alert-success">Location detected successfully!</div>';
+                    detectLocationBtn.disabled = false;
+                    
+                    // Get address from coordinates
+                    getAddressFromCoordinates(latitude, longitude);
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                    let errorMessage = 'Failed to detect location.';
+                    
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = 'Location permission denied. Please enable location access.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = 'Location information unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = 'Location request timed out.';
+                            break;
+                    }
+                    
+                    locationStatus.innerHTML = `<div class="alert alert-error">${errorMessage}</div>`;
+                    detectLocationBtn.disabled = false;
+                    detectLocationBtn.innerHTML = '📍 Detect My Location';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                }
+            );
+        });
+
+        // Get address from coordinates using reverse geocoding
+        async function getAddressFromCoordinates(lat, lng) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+                const data = await response.json();
+                
+                if (data.display_name) {
+                    addressDisplay.textContent = data.display_name;
+                } else {
+                    addressDisplay.textContent = `Latitude: ${lat}, Longitude: ${lng}`;
+                }
+            } catch (error) {
+                console.error('Error getting address:', error);
+                addressDisplay.textContent = `Latitude: ${lat}, Longitude: ${lng}`;
+            }
+        }
+
+        // Handle form submission
+        profileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!userLocation) {
+                showAlert('Please detect your location first', 'error');
+                return;
+            }
+
+            const formData = {
+                name: nameInput.value.trim(),
+                aadhaar_no: aadhaarInput.value.trim(),
+                blood_type: bloodTypeSelect.value,
+                location: userLocation,
+                created_at: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                saveProfileBtn.disabled = true;
+                saveProfileBtn.innerHTML = '<span class="loading"></span> Saving...';
+                
+                const user = window.authModule.getCurrentUser();
+                await window.db.collection('users').doc(user.uid).set(formData);
+                
+                showAlert('Profile saved successfully! Redirecting...', 'success');
+                
+                // Redirect to appropriate dashboard
+                setTimeout(() => {
+                    window.location.href = 'donor-dashboard.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                showAlert('Failed to save profile. Please try again.', 'error');
+            } finally {
+                saveProfileBtn.disabled = false;
+                saveProfileBtn.innerHTML = 'Save Profile';
+            }
+        });
+
+        // Aadhaar number validation
+        aadhaarInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
+
+        // Sign out function
+        function signOut() {
+            window.authModule.signOut();
+        }
+
+        // Toggle notifications
+        function toggleNotifications() {
+            // TODO: Implement notification panel
+            alert('Notifications feature coming soon!');
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+        });
+    </script>
+</body>
+</html> 
